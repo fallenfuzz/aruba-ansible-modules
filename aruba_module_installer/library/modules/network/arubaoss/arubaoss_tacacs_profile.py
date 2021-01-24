@@ -25,56 +25,107 @@ DOCUMENTATION = '''
 ---
 module: arubaoss_tacacs_profile
 
-short_description: implements rest api for Tacacs configuration
+short_description: implements rest api for TACACS configuration
 
 version_added: "2.4"
 
 description:
     - "This implements rest apis which can be used to configure TACACS Server"
 
+extends_documentation_fragment:
+    - arubaoss_rest
+
 options:
-    command:
-        description: Function name calls according to configuration required
-        choices: config_tacacs_profile, config_tacacs_server
-        required: True
-    config:
-        description: To config or unconfig the required command
-        choices: create, delete
-        required: False
-    dead_time
-        description: Dead time for unavailable TACACS+ servers
-        required: False
-    time_out
-        description: TACACS server response timeout
-        required: False
-    global_auth_key
-        description: Authentication key
-        required: False
-    server_ip
-        description: TACACS Server IP Address
-        required: False
-    auth_key
-        description: Authentication key
-        required: False
-    is_oobm
-        description: Use oobm interface to connect the server
-        required: False
+  command:
+    description: Function name calls according to configuration required.
+      choice config_tacacs_server - Configure a TACACS+ server.
+      choice config_tacacs_profile - Configure global TACACS+ profile.
+    choices: config_tacacs_profile, config_tacacs_server
+    required: True
+  config:
+    description: To configure or unconfigure the required command.
+    choices: create, delete
+    default: create
+    required: False
+  dead_time:
+    description: Dead time for unavailable TACACS+ servers. Used with the
+      config_tacacs_profile command.
+    type: int
+    default: 0
+    required: False
+  time_out:
+    description: TACACS server response timeout. Used with the
+      config_tacacs_profile command.
+    type: int
+    default: 5
+    required: False
+  global_auth_key:
+    description: Configure the default authentication key for all TACACS+ servers.
+      Used with the config_tacacs_profile command. To delete, pass in empty string ''.
+    required: False
+    type: str
+  ip_address:
+    description: TACACS Server IP Address. Used with the config_tacacs_server
+      command.
+    required: False
+    type: str
+  auth_key:
+    description: Configure the server authentication key. Used with the
+      config_tacacs_server command.
+    required: False
+    type: str
+  is_oobm:
+    description: Use oobm interface to connect the server.  Used with the
+      config_tacacs_server
+    default: False
+    type: bool
+    required: False
+  ordering_sequence:
+    description: Enables reordering upon deletion of existing server.
+      Used with the config_tacacs_profile command.
+    required: False
+    type: bool
+    default: False
 author:
     - Sanju Sadanandan (@hpe)
 '''
 
 EXAMPLES = '''
-     - name: Updates the given tacacs profile configuration to the system
-       arubaoss_tacacs_profile:
-         command: config_tacacs_profile
-         dead_time: 10
-         time_out: 3
-         global_auth_key: ""
+- name: Creates tacacs-server host 10.1.1.1 with key Aruba!
+  arubaoss_tacacs_profile:
+    command: config_tacacs_server
+    ip_address: 10.1.1.1
+    auth_key: "Aruba!"
+    is_oobm: true
+
+- name: Deletes tacacs-server host 10.1.1.1 with key Aruba!
+  arubaoss_tacacs_profile:
+    command: config_tacacs_server
+    ip_address: 10.1.1.1
+    auth_key: "Aruba!"
+    config: delete
+
+- name: Creates global TACACS+ authentication key
+  arubaoss_tacacs_profile:
+    command: config_tacacs_profile
+    global_auth_key: "Aruba!"
+
+- name: Configure global TACACS+ settings
+  arubaoss_tacacs_profile:
+    command: config_tacacs_profile
+    global_auth_key: "Aruba!"
+    dead_time: 60
+    time_out: 10
+
+- name: Deletes Global TACACS+ settings
+  arubaoss_tacacs_profile:
+    command: config_tacacs_profile
+    global_auth_key: ""
 '''
 
 from ansible.module_utils.basic import AnsibleModule
 from ansible.module_utils.network.arubaoss.arubaoss import run_commands
-from ansible.module_utils.network.arubaoss.arubaoss import arubaoss_argument_spec
+from ansible.module_utils.network.arubaoss.arubaoss import arubaoss_argument_spec, arubaoss_required_if
 from ansible.module_utils.network.arubaoss.arubaoss import get_config
 
 """
@@ -94,11 +145,14 @@ def config_tacacs_profile(module):
     params = module.params
 
     data = {}
+
     data['dead_time'] = params ['dead_time']
     data['time_out'] = params ['time_out']
     data['global_auth_key'] = params ['global_auth_key']
+    data['ordering_sequence'] = params['ordering_sequence']
 
     url = '/tacacs_profile'
+
     method = 'PUT'
 
     result = run_commands(module, url, data, method, check=url)
@@ -162,12 +216,13 @@ def run_module():
             choices=["config_tacacs_profile", "config_tacacs_server"]),
         config=dict(type='str', required=False, default="create",
             choices=["create", "delete"]),
-        dead_time=dict(type='int', required=False, default='10'),
-        time_out=dict(type='int', required=False, default='0'),
+        dead_time=dict(type='int', required=False, default=0),
+        time_out=dict(type='int', required=False, default=5),
+        ordering_sequence=dict(type='bool', required=False, default=False),
         global_auth_key=dict(type='str', required=False,default=""),
         auth_key=dict(type='str', required=False,default=""),
         ip_address=dict(type='str', required=False,default=""),
-        version=dict(type='str', required=False,default=""),
+        version=dict(type='str', required=False,default="IAV_IP_V4"),
         is_oobm=dict(type='bool', required=False,default=False),
     )
 
@@ -176,6 +231,7 @@ def run_module():
     result = dict(changed=False,warnings='Not Supported')
 
     module = AnsibleModule(
+        required_if=arubaoss_required_if,
         argument_spec=module_args,
         supports_check_mode=True
     )

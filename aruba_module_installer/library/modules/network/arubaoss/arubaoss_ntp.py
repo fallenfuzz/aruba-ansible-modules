@@ -1,6 +1,6 @@
 #!/usr/bin/python
 #
-# Copyright (c) 2019 Hewlett Packard Enterprise Development LP
+# Copyright (c) 2020 Hewlett Packard Enterprise Development LP
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -31,6 +31,9 @@ version_added: "2.4"
 
 description:
     - "This implements rest apis which can be used to configure NTP"
+
+extends_documentation_fragment:
+    - arubaoss_rest
 
 options:
     command:
@@ -186,14 +189,14 @@ EXAMPLES = '''
       - name: Remove all NTP traps
         arubaoss_ntp:
           command: "config_ntp"
-          trap_value: 
+          trap_value:
             - enable: False
               trap: "all"
 '''
 
 from ansible.module_utils.basic import AnsibleModule
 from ansible.module_utils.network.arubaoss.arubaoss import run_commands
-from ansible.module_utils.network.arubaoss.arubaoss import arubaoss_argument_spec
+from ansible.module_utils.network.arubaoss.arubaoss import arubaoss_argument_spec, arubaoss_required_if
 from ansible.module_utils.network.arubaoss.arubaoss import get_config
 import json
 import socket
@@ -549,14 +552,9 @@ def config_ntp_ipv4addr(module):
 
     # Configuring OOBM
     if params['use_oobm'] is True:
-        check_presence = get_config(module, "/oobm")
-        if check_presence:
-            use_oobm = {}
-            use_oobm = {'oobm': params['use_oobm']}
-            data[ip4_addr][ip4_addr_ref].update(use_oobm)
-        else:
-            return {'msg': 'Device does not have OOBM port',
-                    'changed': False, 'failed': True}
+        use_oobm = {}
+        use_oobm = {'oobm': params['use_oobm']}
+        data[ip4_addr][ip4_addr_ref].update(use_oobm)
 
     # URIs
     url = "/config/ntp/" + server + "/" + ip4_addr
@@ -602,11 +600,18 @@ def config_ntp_ipv4addr(module):
     # When address is in host name format, "check" in run_commands will not work.
     # so adding the additional check to verify idempotency
     if ip4_addr == "ASCII-STR" and diffseen == False and method != 'DELETE':
-        return {'msg': 'Configuration already exist',
+        return {'msg': 'Configuration already exists',
                 'changed': False, 'failed': False}
     result = run_commands(module, url, data, method, check=check_url)
-    return result
-
+    try:
+        if result['status'] == 400:
+            newdata = json.loads(result['body'])
+            return {'msg': newdata['config_error'][0]['error'],
+                'changed': False, 'failed': True}
+        else :
+            return result
+    except:
+        return result
 
 """
 -------
@@ -672,6 +677,7 @@ def run_module():
     result = dict(changed=False)
 
     module = AnsibleModule(
+        required_if=arubaoss_required_if,
         argument_spec=module_args,
         supports_check_mode=True
     )

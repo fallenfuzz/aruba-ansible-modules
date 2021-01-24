@@ -30,6 +30,9 @@ COLORRED = "\033[0;31m{0}\033[00m"
 SW_PATHS = {'module': 'modules/network/arubaoss',
             'module_utils': 'module_utils/network/arubaoss',
             'plugins_action': 'plugins/action/arubaoss.py',
+            'plugins_cliconf': 'plugins/cliconf/arubaoss.py',
+            'plugins_terminal': 'plugins/terminal/arubaoss.py',
+            'plugins_doc_fragments': 'plugins/doc_fragments/arubaoss_rest.py'
             }
 CONTROLLER_PATHS = {'module': 'modules/network/arubaos_controller'}
 CONTROLLER_SSH_PATHS = {'module': 'modules/network/aruba',
